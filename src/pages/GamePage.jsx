@@ -71,6 +71,7 @@ export default function GamePage({ session, profile, setProfile }) {
   const [playerColor, setPlayerColor] = useState('w');
   const [opponentConnected, setOpponentConnected] = useState(false);
   const [connectionMsg, setConnectionMsg] = useState('');
+  const [opponentName, setOpponentName] = useState('Opponent');
 
   // Dashboard + Profile State
   const [gameResultSaved, setGameResultSaved] = useState(false); // prevent double-save
@@ -114,7 +115,16 @@ export default function GamePage({ session, profile, setProfile }) {
     const inCheck = game.current.isCheck();
     setIsInCheck(inCheck);
     if (game.current.isCheckmate()) {
-      setStatus(`Checkmate! ${game.current.turn() === 'w' ? 'Black' : 'White'} wins.`);
+      const winnerColor = game.current.turn() === 'w' ? 'b' : 'w';
+      let winnerName = winnerColor === 'w' ? 'White' : 'Black';
+      if (gameMode === 'online') {
+        winnerName = winnerColor === playerColor ? (profile?.username || 'You') : opponentName;
+      } else if (gameMode === 'computer') {
+        winnerName = winnerColor === playerColor ? (profile?.username || 'You') : `Computer (${computerRating})`;
+      } else {
+        winnerName = winnerColor === 'w' ? (profile?.username || 'White') : 'Black';
+      }
+      setStatus(`Checkmate! ${winnerName} wins.`);
     } else if (game.current.isDraw()) {
       setStatus('Draw!');
     } else if (inCheck) {
@@ -172,10 +182,12 @@ export default function GamePage({ session, profile, setProfile }) {
       // Someone joined our room — both are now connected
       setOpponentConnected(true);
       handleSpeak('Opponent joined the room');
+      socket.emit('share-username', { roomId, username: profile?.username || 'Player' });
     };
 
     const handlePlayerLeft = () => {
       setOpponentConnected(false);
+      setOpponentName('Opponent');
       handleSpeak('Opponent has left the room');
     };
 
@@ -185,7 +197,12 @@ export default function GamePage({ session, profile, setProfile }) {
       if (count >= 2) {
         setOpponentConnected(true);
         handleSpeak('Joined room. Opponent is already here!');
+        socket.emit('share-username', { roomId, username: profile?.username || 'Player' });
       }
+    };
+
+    const handleOpponentUsername = (name) => {
+      setOpponentName(name || 'Opponent');
     };
 
     const handleMoveMade = (moveData) => {
@@ -215,6 +232,7 @@ export default function GamePage({ session, profile, setProfile }) {
     socket.on('player-joined', handlePlayerJoined);
     socket.on('player-left', handlePlayerLeft);
     socket.on('room-status', handleRoomStatus);
+    socket.on('opponent-username', handleOpponentUsername);
     socket.on('move-made', handleMoveMade);
     socket.on('game-reset', handleGameReset);
 
@@ -222,10 +240,11 @@ export default function GamePage({ session, profile, setProfile }) {
       socket.off('player-joined', handlePlayerJoined);
       socket.off('player-left', handlePlayerLeft);
       socket.off('room-status', handleRoomStatus);
+      socket.off('opponent-username', handleOpponentUsername);
       socket.off('move-made', handleMoveMade);
       socket.off('game-reset', handleGameReset);
     };
-  }, []);
+  }, [roomId, profile]);
 
   const joinRoom = (color) => {
     if (!roomId.trim()) return;
@@ -242,6 +261,7 @@ export default function GamePage({ session, profile, setProfile }) {
     socket.disconnect();
     setIsMultiplayer(false);
     setOpponentConnected(false);
+    setOpponentName('Opponent');
     setRoomId('');
     setConnectionMsg('');
   };
@@ -496,7 +516,7 @@ export default function GamePage({ session, profile, setProfile }) {
   const myName = profile?.username || session?.user?.email?.split('@')[0] || 'You';
   let oppName = 'Player 2';
   if (gameMode === 'computer') oppName = `Computer (${computerRating})`;
-  else if (gameMode === 'online') oppName = 'Opponent';
+  else if (gameMode === 'online') oppName = opponentName;
   else if (gameMode === 'offline') oppName = 'Guest';
 
   let myColorLabel = '(White)';

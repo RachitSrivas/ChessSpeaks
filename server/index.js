@@ -26,14 +26,13 @@ io.on('connection', (socket) => {
     socketRooms[socket.id] = roomId;
     console.log(`User ${socket.id} joined room ${roomId}`);
 
-    // Count how many people are now in this room (including the one who just joined)
     const roomSize = io.sockets.adapter.rooms.get(roomId)?.size ?? 0;
-
-    // Tell the joiner how many people are in the room now
     socket.emit('room-status', { count: roomSize });
-
-    // Tell everyone ELSE in the room that a new player joined
     socket.to(roomId).emit('player-joined', { id: socket.id });
+  });
+
+  socket.on('share-username', ({ roomId, username }) => {
+    socket.to(roomId).emit('opponent-username', username);
   });
 
   socket.on('make-move', ({ roomId, move }) => {
